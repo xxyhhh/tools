@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工具包装</title>
+  <link rel="stylesheet" href="../assets/css/base.css" />
+  <style> body { background:#0b1020; } </style>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../index.html">← 返回首页</a>
+    <div class="tool-title" id="title">工具</div>
+    <div class="tool-bar" id="bar"></div>
+  </header>
+  <div class="iframe-wrap">
+    <iframe class="iframe" id="frame" src="about:blank" referrerpolicy="no-referrer"></iframe>
+  </div>
+  <script>
+    // 读取 ?src= 相对路径，加载到 iframe
+    const params = new URLSearchParams(location.search);
+    const src = params.get('src');
+    const title = params.get('title') || '工具';
+    document.getElementById('title').textContent = title;
+    if (src) {
+      document.getElementById('frame').src = src;
+    } else {
+      document.getElementById('frame').srcdoc = '<div style="color:#9aa3ba;padding:16px;">缺少 src 参数</div>';
+    }
+  </script>
+</body>
+</html>
+

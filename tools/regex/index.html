@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>正则测试台</title>
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <style>
+    .toolbar { padding:12px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.6); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .btn { padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; cursor:pointer; }
+    .layout { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
+    textarea { width:100%; height: calc(100vh - 280px); border:1px solid var(--border); border-radius:12px; background:#0a122c; color:#e6e9f4; padding:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space:pre-wrap; }
+    .card { border:1px solid var(--border); border-radius:12px; padding:12px; background:#0a122c; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    input[type="text"] { flex:1 1 720px; min-width:420px; max-width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; box-shadow: inset 0 1px 0 rgba(255,255,255,.03); transition: border-color .15s ease, box-shadow .15s ease; }
+    input[type="text"]:focus { outline:none; border-color:#3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+    .output { border:1px dashed var(--border); border-radius:10px; padding:12px; background:#09102a; min-height:48px; }
+    mark { background: rgba(59,130,246,.35); color:#e6e9f4; padding:0 2px; border-radius:3px; }
+    .groups { margin-top:8px; color:#cbd5e1; font-size:14px; }
+    .groups .title { color:#9aa3ba; }
+    .small { color:#9aa3ba; font-size:12px; }
+    details.cheat { padding:12px 16px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.7); }
+    details.cheat summary { cursor:pointer; color:#cbd5e1; }
+    .cheat-grid { margin-top:8px; display:grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap:8px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:13px; color:#cbd5e1; }
+    .kbd { display:inline-block; padding:0 6px; border-radius:6px; border:1px solid #243253; background:#0f1a38; color:#e6e9f4; }
+  </style>
+  <script>
+    const $ = (id)=>document.getElementById(id);
+    function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function buildRegex(){
+      const pattern = $('pattern').value;
+      const flags = ['i','m','s','u','y','g'].filter(f => $('f-'+f).checked).join('');
+      try { return { ok:true, re: new RegExp(pattern, flags) }; } catch(e){ return { ok:false, err: String(e) }; }
+    }
+    function highlight(text, re){
+      if(!re.global){
+        const m = text.match(re);
+        if(!m) return escapeHtml(text);
+        const idx = m.index ?? text.indexOf(m[0]);
+        return escapeHtml(text.slice(0,idx)) + '<mark>' + escapeHtml(m[0]) + '</mark>' + escapeHtml(text.slice(idx+m[0].length));
+      }
+      let last = 0, out='';
+      re.lastIndex = 0;
+      let m; while((m = re.exec(text))){
+        const i = m.index ?? 0; out += escapeHtml(text.slice(last,i)) + '<mark>' + escapeHtml(m[0]) + '</mark>'; last = i + m[0].length;
+        if(m[0].length === 0){ re.lastIndex++; }
+      }
+      out += escapeHtml(text.slice(last));
+      return out;
+    }
+    function render(){
+      const {ok,re,err} = buildRegex();
+      const src = $('source').value;
+      if(!ok){ $('preview').innerHTML = '<span class="small">语法错误：'+escapeHtml(err)+'</span>'; $('groups').innerHTML=''; return; }
+      $('preview').innerHTML = highlight(src, re);
+      // 分组详情（前 20 次匹配）
+      const lines = [];
+      const r = new RegExp(re.source, re.flags.includes('g')? re.flags : re.flags + 'g');
+      let count = 0; let m; r.lastIndex = 0;
+      while((m = r.exec(src)) && count < 20){
+        const header = `#${++count} [${m.index}-${m.index + m[0].length})`;
+        const parts = m.map((g,i)=>`$${i}: ${escapeHtml(String(g))}`).join(' | ');
+        lines.push(header+"\n"+parts);
+        if(m[0].length === 0){ r.lastIndex++; }
+      }
+      $('groups').textContent = lines.length? lines.join('\n\n') : '无匹配';
+    }
+    function bind(){
+      ['pattern','source'].forEach(id=>$(id).addEventListener('input', render));
+      ['i','m','s','u','y','g'].forEach(f=>$('f-'+f).addEventListener('change', render));
+      render();
+    }
+    document.addEventListener('DOMContentLoaded', bind);
+  </script>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../../index.html">← 返回首页</a>
+    <div class="tool-title">正则测试台</div>
+    <div class="tool-bar"></div>
+  </header>
+
+  <details class="cheat">
+    <summary>常用正则语法速查</summary>
+    <div class="cheat-grid">
+      <div><span class="kbd">.</span> 任意字符；<span class="kbd">\d</span> 数字；<span class="kbd">\w</span> 单词；<span class="kbd">\s</span> 空白</div>
+      <div><span class="kbd">^</span>/<span class="kbd">$</span> 行首/行尾；<span class="kbd">\b</span> 单词边界</div>
+      <div><span class="kbd">+</span> 1+；<span class="kbd">*</span> 0+；<span class="kbd">?</span> 0/1；<span class="kbd">{m,n}</span> 次数范围</div>
+      <div><span class="kbd">[abc]</span> 字符集；<span class="kbd">[^abc]</span> 取反；<span class="kbd">(A|B)</span> 分支</div>
+      <div><span class="kbd">( )</span> 捕获分组；<span class="kbd">(?: )</span> 非捕获；<span class="kbd">(?&lt;=x)</span> 断言</div>
+      <div>标志位：<span class="kbd">g</span> 全局 <span class="kbd">i</span> 忽略大小写 <span class="kbd">m</span> 多行 <span class="kbd">s</span> 单行 <span class="kbd">u</span> Unicode <span class="kbd">y</span> 粘连</div>
+      <div>示例：<span class="kbd">(\w+)@(\w+).com</span> 提取邮箱用户名/域名</div>
+      <div>示例：<span class="kbd">https?:\/\/[^\s]+</span> 匹配 URL</div>
+    </div>
+  </details>
+
+  <div class="toolbar">
+    <input id="pattern" placeholder="输入正则表达式" />
+    <label><input type="checkbox" id="f-g"/> g</label>
+    <label><input type="checkbox" id="f-i"/> i</label>
+    <label><input type="checkbox" id="f-m"/> m</label>
+    <label><input type="checkbox" id="f-s"/> s</label>
+    <label><input type="checkbox" id="f-u"/> u</label>
+    <label><input type="checkbox" id="f-y"/> y</label>
+  </div>
+
+  <div class="layout">
+    <textarea id="source" placeholder="在此粘贴待匹配文本，修改上方正则即可实时匹配与高亮"></textarea>
+    <div class="card">
+      <div class="output" id="preview"></div>
+      <div class="groups">
+        <div class="title">分组与匹配列表（最多 20 项）</div>
+        <pre id="groups" class="output" style="margin-top:8px;"></pre>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+

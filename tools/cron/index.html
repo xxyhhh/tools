@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cron 调度构建器</title>
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <style>
+    .toolbar { padding:12px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.6); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    /* 简化为单页构建器，无标签 */
+    input[type="text"], input[type="number"], select { padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .layout { padding:16px; display:grid; gap:16px; }
+    .card { border:1px solid var(--border); border-radius:12px; padding:16px; background:#0a122c; }
+    .muted { color:#9aa3ba; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .hidden { display:none; }
+    .weekday { display:flex; gap:8px; }
+    .weekday label { padding:6px 8px; border:1px solid #243253; border-radius:8px; background:#0f1a38; cursor:pointer; }
+  </style>
+  <script>
+    const $ = id => document.getElementById(id);
+    function parseField(expr, min, max){
+      // 支持 * 数值 逗号 步长 区间，如 */5 1,2,7 10-20 10-20/2
+      const set = new Set();
+      const parts = expr.split(',');
+      for(const p of parts){
+        if(p === '*'){ for(let i=min;i<=max;i++) set.add(i); continue; }
+        const stepIdx = p.indexOf('/');
+        const rangeStr = stepIdx>=0 ? p.slice(0,stepIdx) : p;
+        const step = stepIdx>=0 ? parseInt(p.slice(stepIdx+1)||'1',10) : 1;
+        const dashIdx = rangeStr.indexOf('-');
+        let start, end;
+        if(rangeStr === '*'){ start = min; end = max; }
+        else if(dashIdx>=0){ start = parseInt(rangeStr.slice(0,dashIdx),10); end = parseInt(rangeStr.slice(dashIdx+1),10); }
+        else { start = parseInt(rangeStr,10); end = start; }
+        if(Number.isNaN(start)) continue;
+        if(step <= 0) continue;
+        if(end == null || Number.isNaN(end)) end = max;
+        start = Math.max(min, start); end = Math.min(max, end);
+        for(let v=start; v<=end; v+=step) set.add(v);
+      }
+      return [...set].sort((a,b)=>a-b);
+    }
+    function parseCron(expr){
+      // 格式：min hour dom month dow [year]，支持 5 或 6 段
+      const seg = expr.trim().split(/\s+/);
+      if(seg.length < 5) return { ok:false, err:'至少需要 5 段（分 时 日 月 周）' };
+      const [min, hour, dom, month, dow, year] = seg;
+      try{
+        return {
+          ok:true,
+          fields: {
+            min: parseField(min, 0, 59),
+            hour: parseField(hour, 0, 23),
+            dom: parseField(dom, 1, 31),
+            month: parseField(month, 1, 12),
+            dow: parseField(dow, 0, 6), // 0=周日
+            year: year ? parseField(year, 1970, 2099) : null
+          }
+        };
+      }catch(e){
+        return { ok:false, err:String(e) };
+      }
+    }
+    function nextTimes(expr, n=5){
+      const r = parseCron(expr); if(!r.ok) return { ok:false, err: r.err };
+      const f = r.fields;
+      // 字段有效性检查，任一为空则无法命中
+      if(!f.min.length || !f.hour.length || !f.dom.length || !f.month.length || !f.dow.length || (f.year && !f.year.length)){
+        return { ok:false, err:'表达式无有效取值（某一字段为空），请检查各段范围' };
+      }
+      const out = [];
+      let t = new Date(); t.setSeconds(0,0);
+      let guard = 0; const MAX_STEPS = 525600; // 最多扫描一年分钟数，避免卡死
+      while(out.length < n){
+        if(++guard > MAX_STEPS) return { ok:false, err:'搜索超时：范围过窄或不合法，无法在一年内找到触发时间' };
+        t.setMinutes(t.getMinutes()+1);
+        if((f.year && !f.year.includes(t.getFullYear())) ) continue;
+        if(!f.month.includes(t.getMonth()+1)) continue;
+        if(!f.dom.includes(t.getDate())) continue;
+        if(!f.dow.includes(t.getDay())) continue;
+        if(!f.hour.includes(t.getHours())) continue;
+        if(!f.min.includes(t.getMinutes())) continue;
+        out.push(new Date(t));
+      }
+      return { ok:true, list: out };
+    }
+    function humanize(expr){
+      const seg = expr.trim().split(/\s+/);
+      if(seg.length < 5) return '—';
+      const [m, h, dom, mon, dow] = seg;
+      const pad = (n)=>String(n).padStart(2,'0');
+      const dowName = (n)=>['日','一','二','三','四','五','六'][Number(n)||0];
+      const parseNums = (s)=>s.split(',').map(x=>parseInt(x,10)).filter(x=>!Number.isNaN(x)).sort((a,b)=>a-b);
+
+      if(expr === '* * * * *') return '每分钟';
+      const stepM = m.match(/^\*\/(\d+)$/); if(stepM && h==='*' && dom==='*' && mon==='*' && dow==='*') return `每 ${parseInt(stepM[1],10)} 分钟`;
+      if(/^\d+$/.test(m) && h==='*' && dom==='*' && mon==='*' && dow==='*') return `每小时的 ${pad(m)} 分`;
+      if(/^\d+$/.test(m) && /^\d+$/.test(h) && dom==='*' && mon==='*' && dow==='*') return `每天 ${pad(h)}:${pad(m)}`;
+
+      // 每周类
+      if(dom==='*' && /^\d+$/.test(m) && /^\d+$/.test(h) && dow!=='*'){
+        const list = parseNums(dow);
+        const time = `${pad(h)}:${pad(m)}`;
+        const isWorkday = list.join(',') === '1,2,3,4,5';
+        const isWeekend = list.join(',') === '0,6';
+        if(isWorkday) return `每周一至周五 ${time}`;
+        if(isWeekend) return `每周末 ${time}`;
+        if(list.length === 1) return `每周${dowName(list[0])} ${time}`;
+        return `每周（${list.map(dowName).join('、')}） ${time}`;
+      }
+      // 每月类
+      if(dow==='*' && /^\d+$/.test(m) && /^\d+$/.test(h) && /^\d+$/.test(dom)){
+        return `每月 ${parseInt(dom,10)} 日 ${pad(h)}:${pad(m)}`;
+      }
+
+      // 兜底：结构化列出
+      const r = parseCron(expr); if(!r.ok) return '—';
+      const f = r.fields; const any = (a)=>!a.length || a.length>50; const list = (a)=>a.slice(0,6).join(',') + (a.length>6?' …':'');
+      return `分钟(${any(f.min)?'*':list(f.min)}) · 小时(${any(f.hour)?'*':list(f.hour)}) · 日期(${any(f.dom)?'*':list(f.dom)}) · 月(${any(f.month)?'*':list(f.month)}) · 周(${any(f.dow)?'*':list(f.dow)})`;
+    }
+    function buildExpr(){
+      const mode = document.querySelector('input[name="mode"]:checked')?.value || 'every_minute';
+      const h = parseInt($('hour')?.value||'0',10);
+      const m = parseInt($('minute')?.value||'0',10);
+      const d = parseInt($('day')?.value||'1',10);
+      const weekEl = $('week');
+      const w = weekEl ? [...weekEl.querySelectorAll('input:checked')].map(x=>x.value).join(',') || '*' : '*';
+      switch(mode){
+        case 'every_minute': return '* * * * *';
+        case 'every_5min': return '*/5 * * * *';
+        case 'hourly': return `${m} * * * *`;
+        case 'daily': return `${m} ${h} * * *`;
+        case 'weekly': return `${m} ${h} * * ${w}`;
+        case 'monthly': return `${m} ${h} ${d} * *`;
+        default: return '* * * * *';
+      }
+    }
+    function renderBuild(){
+      const exp = buildExpr();
+      const out = $('expr-out'); if(out) out.textContent = exp;
+      const desc = $('desc'); if(desc) desc.textContent = humanize(exp);
+      const n = parseInt($('count')?.value||'5',10);
+      const nx = nextTimes(exp, n);
+      const next = $('next'); if(next) next.innerHTML = nx.ok ? nx.list.map(d=>`<div class=\"mono\">${d.toLocaleString()}</div>`).join('') : `<span class=\"muted\">错误：${nx.err}</span>`;
+      // 根据模式隐藏无关控件，减少干扰
+      const mode = document.querySelector('input[name="mode"]:checked')?.value || 'every_minute';
+      const showDay = mode === 'monthly';
+      const showWeek = mode === 'weekly';
+      $('label-day').style.display = showDay ? 'inline-block' : 'none';
+      $('day').style.display = showDay ? 'inline-block' : 'none';
+      $('label-week').style.display = showWeek ? 'inline-block' : 'none';
+      $('week').style.display = showWeek ? 'flex' : 'none';
+    }
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // 构建器
+      document.querySelectorAll('input, select').forEach(el=>{
+        if(el.closest('#section-build')) el.addEventListener('input', renderBuild);
+      });
+      const copyBtn = document.getElementById('copy-expr');
+      if(copyBtn){ copyBtn.addEventListener('click', ()=>{
+        const s = document.getElementById('expr-out')?.textContent?.trim() || '';
+        if(s) navigator.clipboard?.writeText(s).catch(()=>{});
+      }); }
+      renderBuild();
+      // 解释器绑定
+      const ip = document.getElementById('expr-parse');
+      if(ip){
+        function renderExplain(){
+          const exp = ip.value.trim();
+          if(!exp){ document.getElementById('desc-parse').textContent=''; document.getElementById('next-parse').innerHTML=''; return; }
+          const nx = nextTimes(exp, 5);
+          document.getElementById('desc-parse').textContent = nx.ok ? humanize(exp) : '';
+          document.getElementById('next-parse').innerHTML = nx.ok ? nx.list.map(d=>`<div class=\"mono\">${d.toLocaleString()}</div>`).join('') : `<span class=\"muted\">错误：${nx.err}</span>`;
+        }
+        ip.addEventListener('input', renderExplain);
+        renderExplain();
+      }
+    });
+  </script>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../../index.html">← 返回首页</a>
+    <div class="tool-title">Cron 调度构建器</div>
+    <div class="tool-bar"></div>
+  </header>
+
+  <div class="toolbar" style="justify-content:space-between;">
+    <div class="muted">选择常见周期并填写必要字段，系统自动生成 Cron</div>
+  </div>
+
+  <div class="layout">
+    <div id="section-build">
+      <div class="card">
+        <div class="row">
+          <label><input type="radio" name="mode" value="every_minute" checked /> 每分钟</label>
+          <label><input type="radio" name="mode" value="every_5min" /> 每 5 分钟</label>
+          <label><input type="radio" name="mode" value="hourly" /> 每小时</label>
+          <label><input type="radio" name="mode" value="daily" /> 每天</label>
+          <label><input type="radio" name="mode" value="weekly" /> 每周</label>
+          <label><input type="radio" name="mode" value="monthly" /> 每月</label>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <span class="muted">时间</span>
+          <input id="hour" type="number" min="0" max="23" value="9" style="width:80px;" />
+          <span class="muted">:</span>
+          <input id="minute" type="number" min="0" max="59" value="0" style="width:80px;" />
+          <span id="label-day" class="muted">日</span>
+          <input id="day" type="number" min="1" max="31" value="1" style="width:100px;" />
+          <span id="label-week" class="muted">星期</span>
+          <div class="weekday" id="week">
+            <label><input type="checkbox" value="1" checked/> 一</label>
+            <label><input type="checkbox" value="2"/> 二</label>
+            <label><input type="checkbox" value="3"/> 三</label>
+            <label><input type="checkbox" value="4"/> 四</label>
+            <label><input type="checkbox" value="5"/> 五</label>
+            <label><input type="checkbox" value="6"/> 六</label>
+            <label><input type="checkbox" value="0"/> 日</label>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="muted">生成的 Cron 表达式</div>
+        <div class="row" style="margin-top:6px; align-items:center;">
+          <div id="expr-out" class="mono" style="flex:1;"></div>
+          <button id="copy-expr" class="btn">复制</button>
+        </div>
+        <div class="muted" style="margin-top:8px;">人类可读说明</div>
+        <div id="desc" class="mono" style="margin-top:6px;"></div>
+      </div>
+      <div class="card">
+        <div class="muted">接下来触发时间</div>
+        <div class="row" style="margin:8px 0;">
+          <span class="muted">显示条数</span>
+          <input id="count" type="number" min="1" max="50" value="5" style="width:80px;" />
+        </div>
+        <div id="next"></div>
+      </div>
+    </div>
+
+    <!-- 表达式 → 说明：用户粘贴现有 cron 获取自然语言解释 -->
+    <div id="section-explain">
+      <div class="card">
+        <div class="muted">表达式解释</div>
+        <div class="row" style="margin-top:8px;">
+          <input id="expr-parse" placeholder="粘贴 Cron，例如：0 9 * * 1-5" style="min-width:420px; flex:1;" />
+        </div>
+        <div class="muted" style="margin-top:8px;">人类可读说明</div>
+        <div id="desc-parse" class="mono" style="margin-top:6px;"></div>
+        <div class="muted" style="margin-top:8px;">接下来触发时间</div>
+        <div id="next-parse" style="margin-top:6px;"></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+

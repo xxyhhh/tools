@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Base64 / URL / UTF-8 编解码</title>
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <style>
+    .toolbar { padding:12px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.6); display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; cursor:pointer; transition:.12s; }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+    .layout { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
+    textarea { width:100%; height: calc(100vh - 180px); border:1px solid var(--border); border-radius:12px; background:#0a122c; color:#e6e9f4; padding:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .panel { display:flex; gap:8px; align-items:center; }
+    input[type=file] { display:none; }
+    .hint { color:#9aa3ba; font-size:12px; }
+  </style>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../../index.html">← 返回首页</a>
+    <div class="tool-title">Base64 / URL / UTF-8 编解码</div>
+    <div class="tool-bar"></div>
+  </header>
+
+  <div class="toolbar">
+    <div class="panel">
+      <button class="btn" id="b64enc">Base64 编码</button>
+      <button class="btn" id="b64dec">Base64 解码</button>
+      <button class="btn" id="urlenc">URL 编码</button>
+      <button class="btn" id="urldec">URL 解码</button>
+      <button class="btn" id="utf8to16">UTF-8 → UTF-16</button>
+      <button class="btn" id="u16to8">UTF-16 → UTF-8</button>
+      <label class="btn" for="file">文件 → Base64</label>
+      <input id="file" type="file" />
+    </div>
+  </div>
+
+  <div class="layout">
+    <textarea id="left" placeholder="输入待处理文本..."></textarea>
+    <textarea id="right" placeholder="结果输出..." readonly></textarea>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const left = $('left'), right = $('right');
+
+    function set(v){ right.value = v; }
+    function get(){ return left.value || ''; }
+
+    $('b64enc').onclick = ()=> set(btoa(unescape(encodeURIComponent(get()))));
+    $('b64dec').onclick = ()=> { try{ set(decodeURIComponent(escape(atob(get())))); } catch(e){ set('解码失败：' + e.message); } };
+    $('urlenc').onclick = ()=> set(encodeURIComponent(get()));
+    $('urldec').onclick = ()=> { try{ set(decodeURIComponent(get())); } catch(e){ set('解码失败：' + e.message); } };
+
+    $('utf8to16').onclick = ()=> {
+      const bytes = new TextEncoder().encode(get());
+      // 显示为 \uXXXX 序列
+      let out = '';
+      for (const b of bytes) out += b.toString(16).padStart(2,'0') + ' ';
+      set(out.trim());
+    };
+    $('u16to8').onclick = ()=> {
+      const hex = get().trim().replace(/\s+/g,'');
+      if (!hex) return set('');
+      const arr = new Uint8Array(hex.length/2);
+      for(let i=0;i<hex.length;i+=2) arr[i/2] = parseInt(hex.slice(i,i+2),16);
+      set(new TextDecoder().decode(arr));
+    };
+
+    $('file').addEventListener('change', () => {
+      const f = $('file').files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = () => { left.value = ''; right.value = r.result.split(',')[1] || r.result; };
+      r.readAsDataURL(f);
+    });
+  </script>
+</body>
+</html>
+
+
+
+

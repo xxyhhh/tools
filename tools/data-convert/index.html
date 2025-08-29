@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JSON / CSV / YAML 转换与格式化</title>
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <style>
+    .toolbar { padding:12px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.6); display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; cursor:pointer; transition:.12s; }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+    .layout { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
+    textarea { width:100%; height: calc(100vh - 200px); border:1px solid var(--border); border-radius:12px; background:#0a122c; color:#e6e9f4; padding:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    select { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; }
+  </style>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../../index.html">← 返回首页</a>
+    <div class="tool-title">JSON / CSV / YAML 转换与格式化</div>
+    <div class="tool-bar"></div>
+  </header>
+
+  <div class="toolbar">
+    <select id="from">
+      <option>JSON</option>
+      <option>CSV</option>
+      <option>YAML</option>
+    </select>
+    <span style="align-self:center;color:#9aa3ba">→</span>
+    <select id="to">
+      <option>JSON</option>
+      <option>CSV</option>
+      <option>YAML</option>
+    </select>
+    <button class="btn" id="convert">转换</button>
+    <button class="btn" id="pretty">美化</button>
+    <button class="btn" id="minify">压缩</button>
+    <button class="btn" id="copy">复制结果</button>
+  </div>
+
+  <div class="layout">
+    <textarea id="left" placeholder="输入 JSON/CSV/YAML"></textarea>
+    <textarea id="right" placeholder="结果输出" readonly></textarea>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const left = $('left'), right = $('right');
+
+    // 轻量 CSV 解析/生成
+    function parseCSV(text){
+      const rows = text.replace(/\r\n?|\n/g,'\n').split('\n').filter(r=>r.length>0);
+      return rows.map(r=>{
+        const out=[]; let cur=''; let inQ=false;
+        for(let i=0;i<r.length;i++){
+          const c=r[i];
+          if(c==='"'){
+            if(inQ && r[i+1]==='"'){ cur+='"'; i++; }
+            else inQ=!inQ;
+          }else if(c===',' && !inQ){ out.push(cur); cur=''; }
+          else cur+=c;
+        }
+        out.push(cur);
+        return out;
+      });
+    }
+    function csvEscapeCell(v){
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    }
+    function rowsToCSV(rows){
+      return rows.map(row=> row.map(csvEscapeCell).join(',')).join('\n');
+    }
+    function toCSV(data){
+      // 支持：数组行、对象数组、对象、原始数组
+      if (Array.isArray(data)) {
+        if (data.length === 0) return '';
+        if (Array.isArray(data[0])) {
+          return rowsToCSV(data);
+        }
+        if (typeof data[0] === 'object' && data[0] !== null) {
+          const headerSet = new Set();
+          data.forEach(o => Object.keys(o).forEach(k => headerSet.add(k)));
+          const headers = Array.from(headerSet);
+          const rows = [headers, ...data.map(o => headers.map(h => o[h] ?? ''))];
+          return rowsToCSV(rows);
+        }
+        // 原始数组
+        return rowsToCSV([["value"], ...data.map(v => [v])]);
+      }
+      if (data && typeof data === 'object') {
+        const headers = ['key','value'];
+        const rows = [headers, ...Object.entries(data)];
+        return rowsToCSV(rows);
+      }
+      return rowsToCSV([["value"], [data]]);
+    }
+
+    // 简易 YAML（键值对/数组）– 适用于常见轻量数据
+    function parseYAML(str){
+      const lines = str.replace(/\t/g,'  ').split(/\r?\n/);
+      const stack=[{indent:-1, value:{}}];
+      for(const line of lines){
+        if(!line.trim()) continue;
+        const indent = line.match(/^\s*/)[0].length;
+        while(stack.length && indent <= stack[stack.length-1].indent) stack.pop();
+        const cur = stack[stack.length-1];
+        if(line.trim().startsWith('- ')){
+          if(!Array.isArray(cur.value)) cur.value = [];
+          const item = line.trim().slice(2);
+          if(item.includes(': ')){
+            const [k, v] = item.split(/:\s(.+)/);
+            const obj = {}; obj[k]=parseScalar(v);
+            cur.value.push(obj);
+          }else cur.value.push(parseScalar(item));
+          continue;
+        }
+        const m = line.trim().match(/([^:]+):\s*(.*)$/);
+        if(m){
+          const [_, k, v] = m;
+          if(v===''){
+            const node = {indent, value:{}}; cur.value[k]=node.value; stack.push(node);
+          }else cur.value[k]=parseScalar(v);
+        }
+      }
+      return stack[0].value;
+    }
+    function parseScalar(v){
+      if(v==='null' || v==='~') return null;
+      if(v==='true') return true; if(v==='false') return false;
+      if(/^[-+]?\d+(\.\d+)?$/.test(v)) return Number(v);
+      if((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1,-1);
+      return v;
+    }
+    function toYAML(obj, indent=''){
+      if(Array.isArray(obj)) return obj.map(v=> indent+'- '+formatScalar(v, indent+'  ')).join('\n');
+      if(typeof obj==='object' && obj!==null){
+        return Object.keys(obj).map(k=>{
+          const v=obj[k];
+          if(typeof v==='object' && v!==null){
+            return indent+k+':\n'+toYAML(v, indent+'  ');
+          }
+          return indent+k+': '+formatScalar(v, indent+'  ');
+        }).join('\n');
+      }
+      return indent+formatScalar(obj, indent);
+    }
+    function formatScalar(v){
+      if(v===null) return 'null';
+      if(typeof v==='string') return /[:\-#\n,]/.test(v) ? '"'+v.replace(/"/g,'\\"')+'"' : v;
+      if(typeof v==='number' || typeof v==='boolean') return String(v);
+      return '""';
+    }
+
+    function convert(){
+      const from = $('from').value; const to = $('to').value; let data;
+      try{
+        if(from==='JSON') data = JSON.parse(left.value || 'null');
+        if(from==='CSV') data = parseCSV(left.value);
+        if(from==='YAML') data = parseYAML(left.value);
+      }catch(e){ right.value = '解析失败：'+e.message; return; }
+
+      try{
+        if(to==='JSON') right.value = JSON.stringify(data, null, 2);
+        if(to==='CSV') right.value = toCSV(data);
+        if(to==='YAML') right.value = toYAML(data);
+      }catch(e){ right.value = '生成失败：'+e.message; }
+    }
+
+    $('convert').onclick = convert;
+    $('pretty').onclick = ()=>{ try{ right.value = JSON.stringify(JSON.parse(left.value), null, 2); }catch(e){ right.value='美化失败：'+e.message; } };
+    $('minify').onclick = ()=>{ try{ right.value = JSON.stringify(JSON.parse(left.value)); }catch(e){ right.value='压缩失败：'+e.message; } };
+    $('copy').onclick = async ()=> { try{ await navigator.clipboard.writeText(right.value); const t=$('copy').textContent; $('copy').textContent='已复制'; setTimeout(()=>$('copy').textContent=t,900);}catch(e){} };
+  </script>
+</body>
+</html>
+
+

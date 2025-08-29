@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>在线工具集</title>
+  <meta name="description" content="免费在线工具集：图像工具、PDF、编码生成、音视频等" />
+  <link rel="stylesheet" href="./assets/css/base.css" />
+  <link rel="canonical" href="https://xxyhhh.github.io/tools/" />
+  <meta property="og:title" content="在线工具集 - 纯前端免费工具" />
+  <meta property="og:description" content="UUID/密码生成、正则测试、Cron 构建器、二维码生成、HLS 播放等常用在线工具。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://xxyhhh.github.io/tools/" />
+  <meta property="og:image" content="https://xxyhhh.github.io/tools/assets/icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebSite","name":"在线工具集","url":"https://xxyhhh.github.io/tools/","potentialAction":{"@type":"SearchAction","target":"https://xxyhhh.github.io/tools/?q={search_term_string}","query-input":"required name=search_term_string"}}
+  </script>
+  <script>
+    // 如部署在 GitHub Pages 子路径，设置 window.__BASE_PATH__
+    // window.__BASE_PATH__ = '/<repo-name>';
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="navbar container">
+      <div class="brand"><span class="logo"></span><span class="title">在线工具集</span></div>
+      <div style="margin-left:auto;display:flex;gap:16px;align-items:center;">
+        <a class="button" href="./about.html">关于</a>
+        <span style="color:#9aa3ba;font-size:13px;">纯前端 · 免费</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="controls">
+      <div class="search">
+        <span class="icon">🔎</span>
+        <input id="search" placeholder="搜索工具，例如：PDF、图片、二维码" />
+      </div>
+    </div>
+
+    <div class="chips" style="margin-top:12px;">
+      <div class="chip active" data-value="全部">全部</div>
+      <div class="chip" data-value="图像工具">图像工具</div>
+      <div class="chip" data-value="编码生成">编码生成</div>
+      <div class="chip" data-value="音视频">音视频</div>
+    </div>
+
+    <section class="grid" style="margin-top:16px;"></section>
+  </main>
+
+  <script src="./assets/js/app.js"></script>
+</body>
+</html>
+

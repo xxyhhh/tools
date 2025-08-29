@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <title>m3u8播放器</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="M3U8Player播放器，用于m3u8文件的在线播放">
+
+    <script src="https://cdn.staticfile.org/jquery/3.6.0/jquery.min.js"></script>
+
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+    <link rel="stylesheet" href="https://cdn.staticfile.org/social-share.js/1.0.16/css/share.min.css">
+    <script src="https://cdn.staticfile.org/social-share.js/1.0.16/js/social-share.min.js"></script>
+
+    <link href="https://web.sdk.qcloud.com/player/tcplayer/release/v5.1.0/tcplayer.min.css" rel="stylesheet" />
+    <script src="https://web.sdk.qcloud.com/player/tcplayer/release/v5.1.0/tcplayer.v5.1.0.min.js"></script>
+
+ 
+
+    <style>
+
+        @media screen and (max-width: 640px){
+            #player-container-id {
+                height: 200px!important;
+            }
+        }
+        
+        html, body{
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+
+
+        .main {
+            padding: 16px 16px;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .main h1 {
+            text-align: center;
+            font-size: 30px;
+            color: #0e90d2;
+            font-weight: 800;
+            margin-bottom: 24px;
+        }
+
+        .main .form {
+            width: 100%;
+            display: flex;
+            flex-direction: row;
+            margin-bottom: 24px;
+        }
+
+        .main .form input {
+            flex: 1;
+            height: 40px;
+            border-top: 1px solid #0e90d2;
+            border-left: 1px solid #0e90d2;
+            border-bottom: 1px solid #0e90d2;
+            border-right: 0px;
+            padding-left: 10px;
+        }
+
+        .main .form input:focus {
+            outline: #0e90d2;
+        }
+
+        .main .form img {
+            margin-left: -4px;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+        }
+
+        .main #share {
+            text-align: center;
+            margin-top: 24px;
+            margin-bottom: 24px;
+        }
+
+        .main p {
+            font-size: 15px;
+        }
+
+        .main .alert a {
+            color: #501445;
+            text-decoration: underline;
+        }
+
+        .main h2 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #0e90d2;
+            margin: 25px 0 15px 0;
+        }
+
+        .main h3 {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0 10px 0;
+        }
+
+        .main h4 {
+            font-size: 16px;
+            font-weight: bold;
+            color: #555;
+            margin: 15px 0 8px 0;
+        }
+
+        .main ul, .main ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .main li {
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+
+        .main pre {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+    </style>
+
+
+</head>
+
+<body>
+
+    <div class="main">
+        <h1>在线视频播放器</h1>
+
+        <div class="form">
+            <input type="text" id="url"  value="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" placeholder="请输入视频播放地址" autocomplete="off">
+            <img src="./images/ic-play.png" onclick="play()"/>
+        </div>
+
+        <video id="player-container-id"  preload="auto" playsinline webkit-playsinline style="width: 100%;min-height:200px; background:#000;">
+        </video>
+
+        <div class="alert alert-success" role="alert">
+            <h2>🎬 在线视频播放工具</h2>
+            <p>
+                这是一个基于腾讯云播放器SDK开发的在线视频播放工具，支持多种视频格式的在线播放，包括：
+            </p>
+            <ul>
+                <li><strong>M3U8/HLS格式</strong> - HTTP Live Streaming流媒体</li>
+                <li><strong>MP4格式</strong> - 标准视频文件</li>
+                <li><strong>FLV格式</strong> - Flash视频格式</li>
+                <li><strong>其他格式</strong> - 浏览器支持的视频格式</li>
+            </ul>
+
+            
+
+            <h3>📱 使用方法</h3>
+            <ol>
+                <li>在输入框中粘贴视频播放地址</li>
+                <li>点击播放按钮开始观看</li>
+                <li>支持播放控制：播放/暂停、音量调节、全屏等</li>
+                <li>支持清晰度切换和播放速度调节</li>
+            </ol>
+
+            
+
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <h4>⚠️ 注意事项</h4>
+                <ul>
+                    <li>请确保视频地址有效且可访问</li>
+                    <li>建议使用HTTPS协议的视频地址</li>
+                    <li>部分视频可能需要特定的播放权限</li>
+                    <li>如遇到播放问题，请检查网络连接和视频格式</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <script>
+        var player = undefined;
+
+        function play() {
+            
+            let url = $("#url").val()
+
+            if(player === undefined) {
+                player = TCPlayer('player-container-id', {
+                sources: [{
+                    src: url,
+                }],
+                // licenseUrl需自己去腾讯云申请
+                licenseUrl: 'https://license.vod2.myqcloud.com/license/v2/1322341581_1/v_cube.license',
+            });
+            }
+
+
+            player.pause();
+            console.log(url)
+            player.src(url); // url 播放地址
+        }
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>文本整理工具</title>
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <style>
+    .toolbar { padding:12px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.6); display:flex; flex-wrap:wrap; gap:8px; }
+    .btn { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; cursor:pointer; transition:.12s ease; }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+    .btn.primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); border-color: transparent; }
+    .layout { display:grid; grid-template-columns: 1fr 260px; gap:16px; padding:16px; }
+    textarea { width:100%; height: calc(100vh - 180px); resize: vertical; border:1px solid var(--border); border-radius:12px; background:#0a122c; color:#e6e9f4; padding:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .panel { background:#0a122c; border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:10px; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .panel input[type="text"] { padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; width:100%; }
+    .panel input[type="checkbox"] { width:auto; height:auto; margin-right:6px; }
+    label { color:#9aa3ba; font-size:13px; display:flex; align-items:center; gap:8px; }
+  </style>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../../index.html">← 返回首页</a>
+    <div class="tool-title">文本整理工具</div>
+    <div class="tool-bar"></div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn" id="upper">大写</button>
+    <button class="btn" id="lower">小写</button>
+    <button class="btn" id="title">首字母大写</button>
+    <button class="btn" id="trim">去首尾空白</button>
+    <button class="btn" id="dedupe">行去重</button>
+    <button class="btn" id="sortAsc">升序排序</button>
+    <button class="btn" id="sortDesc">降序排序</button>
+    <button class="btn" id="commaToNl">逗号→换行</button>
+    <button class="btn" id="nlToComma">换行→逗号</button>
+  </div>
+
+  <div class="layout">
+    <textarea id="txt" placeholder="在此粘贴或输入文本...\n支持：大小写、去重、排序、前后缀、分隔符转换等"></textarea>
+    <div class="panel">
+      <div class="row"><label>为每行添加前缀/后缀</label></div>
+      <div class="row"><input id="prefix" placeholder="前缀，如 \"[\"" /></div>
+      <div class="row"><input id="suffix" placeholder="后缀，如 \"]\"" /></div>
+      <div class="row"><button class="btn primary" id="applyAffix">应用前后缀</button></div>
+      <div class="row"><label><input type="checkbox" id="ignoreCase"/> 去重/排序时忽略大小写</label></div>
+      <div class="row"><label><input type="checkbox" id="trimLine" checked/> 去除每行首尾空白</label></div>
+      <div class="row"><button class="btn" id="copy">复制全部</button></div>
+      <div class="row"><button class="btn" id="clear">清空</button></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const txt = $('txt');
+    function withLines(fn){
+      const raw = txt.value.replace(/\r\n?/g, '\n');
+      let lines = raw.split('\n');
+      if ($('trimLine').checked) lines = lines.map(s=>s.trim());
+      lines = fn(lines);
+      txt.value = lines.join('\n');
+    }
+    $('upper').onclick = ()=> txt.value = txt.value.toUpperCase();
+    $('lower').onclick = ()=> txt.value = txt.value.toLowerCase();
+    $('title').onclick = ()=> txt.value = txt.value.toLowerCase().replace(/\b([a-z])/g, (m,c)=>c.toUpperCase());
+    $('trim').onclick = ()=> txt.value = txt.value.trim();
+    $('dedupe').onclick = ()=> withLines(lines=>{
+      const set = new Set(); const out = []; const ic = $('ignoreCase').checked;
+      for(const s of lines){ const k = ic ? s.toLowerCase() : s; if(!set.has(k)){ set.add(k); out.push(s);} }
+      return out;
+    });
+    $('sortAsc').onclick = ()=> withLines(ls=>ls.sort((a,b)=> $('ignoreCase').checked ? a.localeCompare(b,undefined,{sensitivity:'accent'}) : a.localeCompare(b)));
+    $('sortDesc').onclick = ()=> withLines(ls=>ls.sort((a,b)=> $('ignoreCase').checked ? b.localeCompare(a,undefined,{sensitivity:'accent'}) : b.localeCompare(a)));
+    $('commaToNl').onclick = ()=> txt.value = txt.value.split(',').map(s=>s.trim()).filter(Boolean).join('\n');
+    $('nlToComma').onclick = ()=> txt.value = txt.value.replace(/\r\n?/g,'\n').split('\n').map(s=>s.trim()).filter(Boolean).join(', ');
+    $('applyAffix').onclick = ()=> withLines(ls=> ls.map(s=> s ? ($('prefix').value||'') + s + ($('suffix').value||'') : s));
+    $('copy').onclick = async ()=> { try{ await navigator.clipboard.writeText(txt.value); const t = $('copy').textContent; $('copy').textContent='已复制'; setTimeout(()=>$('copy').textContent=t,900);}catch(e){} };
+    $('clear').onclick = ()=> txt.value='';
+  </script>
+</body>
+</html>
+
+

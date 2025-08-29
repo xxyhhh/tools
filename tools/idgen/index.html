@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UUID/随机密码/Nonce 生成</title>
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <style>
+    .toolbar { padding:12px; border-bottom:1px solid var(--border); background: rgba(10,16,34,.6); display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; cursor:pointer; transition: background .15s ease, border-color .15s ease, transform .05s ease, box-shadow .15s ease; }
+    .btn:hover { background:#132249; border-color:#324064; }
+    .btn:active { background:#162a58; transform: translateY(1px); box-shadow: inset 0 2px 6px rgba(0,0,0,.35); }
+    .btn:focus-visible { outline:2px solid #3b82f6; outline-offset:2px; }
+    .layout { display:grid; grid-template-columns: 1fr; gap:16px; padding:16px; }
+    .card { border:1px solid var(--border); border-radius:12px; background:#0a122c; padding:16px; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .out { width:100%; min-height:48px; padding:12px; border:1px dashed var(--border); border-radius:8px; background:#09102a; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; word-break: break-all; }
+    label { color:#9aa3ba; margin-right:8px; }
+    input[type="number"]{ width:96px; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1a38; color:#e6e9f4; }
+    .checks { display:flex; gap:12px; flex-wrap:wrap; }
+  </style>
+  <script>
+    const $ = (id)=>document.getElementById(id);
+    function copyText(text){
+      navigator.clipboard?.writeText(text).catch(()=>{});
+    }
+    function uuidV4(){
+      const a = crypto.getRandomValues(new Uint8Array(16));
+      a[6] = (a[6] & 0x0f) | 0x40; // version 4
+      a[8] = (a[8] & 0x3f) | 0x80; // variant 10
+      const h = [...a].map(x=>x.toString(16).padStart(2,'0'));
+      return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+    }
+    function uuidV7(){
+      // 简实现：48-bit 毫秒时间戳 + 随机，设置 version=7 与 variant=10
+      const ts = Date.now();
+      const rand = crypto.getRandomValues(new Uint8Array(10));
+      const b = new Uint8Array(16);
+      b[0] = (ts >>> 40) & 0xff;
+      b[1] = (ts >>> 32) & 0xff;
+      b[2] = (ts >>> 24) & 0xff;
+      b[3] = (ts >>> 16) & 0xff;
+      b[4] = (ts >>> 8) & 0xff;
+      b[5] = ts & 0xff;
+      b[6] = 0x70 | (rand[0] & 0x0f); // version 7
+      b[7] = rand[1];
+      b[8] = 0x80 | (rand[2] & 0x3f); // variant 10
+      b.set(rand.slice(3), 9);
+      const h = [...b].map(x=>x.toString(16).padStart(2,'0'));
+      return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+    }
+    function generateFromCharset(len, charset){
+      if(len <= 0) return '';
+      const out = [];
+      const cs = charset;
+      const csLen = cs.length;
+      const buf = new Uint8Array(len);
+      crypto.getRandomValues(buf);
+      for(let i=0;i<len;i++) out.push(cs[buf[i] % csLen]);
+      return out.join('');
+    }
+    const CHARS = {
+      lower: 'abcdefghijklmnopqrstuvwxyz',
+      upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+      digit: '0123456789',
+      symbol: '!@#$%^&*-_=+[]{}()~.,;:/?'
+    };
+    const PRESET = {
+      hex: '0123456789abcdef',
+      base32: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', // RFC4648
+      base64url: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    };
+    function currentCharset(opts){
+      const list = [];
+      if(opts.lower) list.push(CHARS.lower);
+      if(opts.upper) list.push(CHARS.upper);
+      if(opts.digit) list.push(CHARS.digit);
+      if(opts.symbol) list.push(CHARS.symbol);
+      if(opts.hex) return PRESET.hex;
+      if(opts.base32) return PRESET.base32;
+      if(opts.base64url) return PRESET.base64url;
+      return list.join('') || CHARS.lower+CHARS.upper+CHARS.digit;
+    }
+    function bind(){
+      // UUID
+      $('g-v4').onclick = ()=>{ const s = uuidV4(); $('out-uuid').textContent = s; };
+      $('g-v7').onclick = ()=>{ const s = uuidV7(); $('out-uuid').textContent = s; };
+      $('copy-uuid').onclick = ()=> copyText($('out-uuid').textContent.trim());
+      // 密码
+      function genPwd(){
+        const len = parseInt($('pwd-len').value || '16', 10);
+        const opts = {
+          lower: $('c-lower').checked,
+          upper: $('c-upper').checked,
+          digit: $('c-digit').checked,
+          symbol: $('c-symbol').checked,
+          hex: $('c-hex').checked,
+          base32: $('c-base32').checked,
+          base64url: $('c-base64url').checked,
+        };
+        const s = generateFromCharset(len, currentCharset(opts));
+        $('out-pwd').textContent = s;
+      }
+      $('g-pwd').onclick = genPwd; $('copy-pwd').onclick = ()=>copyText($('out-pwd').textContent.trim());
+      // Nonce
+      function genNonce(){
+        const len = parseInt($('nonce-len').value || '16', 10);
+        const opts = { base64url: $('n-base64url').checked, base32: $('n-base32').checked, hex: $('n-hex').checked };
+        const s = generateFromCharset(len, currentCharset(opts));
+        $('out-nonce').textContent = s;
+      }
+      $('g-nonce').onclick = genNonce; $('copy-nonce').onclick = ()=>copyText($('out-nonce').textContent.trim());
+    }
+    document.addEventListener('DOMContentLoaded', bind);
+  </script>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="back" href="../../index.html">← 返回首页</a>
+    <div class="tool-title">UUID/随机密码/Nonce 生成</div>
+    <div class="tool-bar"></div>
+  </header>
+
+  <div class="toolbar">
+    <div>支持 UUID v4、v7；自定义密码与随机 Nonce</div>
+  </div>
+
+  <div class="layout">
+    <div class="card">
+      <h3>UUID 生成</h3>
+      <div class="row">
+        <button class="btn" id="g-v4">生成 UUID v4</button>
+        <button class="btn" id="g-v7">生成 UUID v7</button>
+        <button class="btn" id="copy-uuid">复制</button>
+      </div>
+      <div id="out-uuid" class="out" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>随机密码</h3>
+      <div class="row" style="margin-bottom:8px;">
+        <label>长度</label>
+        <input id="pwd-len" type="number" min="4" max="256" value="16" />
+        <div class="checks">
+          <label><input id="c-lower" type="checkbox" checked /> 小写</label>
+          <label><input id="c-upper" type="checkbox" checked /> 大写</label>
+          <label><input id="c-digit" type="checkbox" checked /> 数字</label>
+          <label><input id="c-symbol" type="checkbox" /> 符号</label>
+          <label><input id="c-hex" type="checkbox" /> Hex</label>
+          <label><input id="c-base32" type="checkbox" /> Base32</label>
+          <label><input id="c-base64url" type="checkbox" /> Base64URL</label>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="g-pwd">生成密码</button>
+        <button class="btn" id="copy-pwd">复制</button>
+      </div>
+      <div id="out-pwd" class="out" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Nonce 随机串</h3>
+      <div class="row" style="margin-bottom:8px;">
+        <label>长度</label>
+        <input id="nonce-len" type="number" min="8" max="256" value="16" />
+        <div class="checks">
+          <label><input id="n-hex" type="checkbox" /> Hex</label>
+          <label><input id="n-base32" type="checkbox" /> Base32</label>
+          <label><input id="n-base64url" type="checkbox" checked /> Base64URL</label>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="g-nonce">生成 Nonce</button>
+        <button class="btn" id="copy-nonce">复制</button>
+      </div>
+      <div id="out-nonce" class="out" style="margin-top:8px;"></div>
+    </div>
+  </div>
+</body>
+</html>
+
+
